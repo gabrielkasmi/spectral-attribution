@@ -511,10 +511,8 @@ class SobolAttributionMethod:
 
         self.batch_size = batch_size
 
-        device = next(self.model.parameters()).device
-
         masks = sampler(grid_size**2, nb_design).reshape((-1, 1, grid_size, grid_size))
-        self.masks = torch.Tensor(masks).to(device)
+        self.masks = torch.Tensor(masks)
 
     def __call__(self, inputs, labels):
         """
@@ -561,7 +559,13 @@ class SobolAttributionMethod:
 
     @staticmethod
     def _batch_forward(model, input, masks, perturbator, input_shape):
+
+        device = next(model.parameters()).device
+
+        #device = 'cuda'
+        #model = model.to(device)
+
         upsampled_masks = interpolate(masks, input_shape)
         perturbated_inputs = perturbator(upsampled_masks)
-        outputs = model(perturbated_inputs)
+        outputs = model(perturbated_inputs.to(device))
         return outputs

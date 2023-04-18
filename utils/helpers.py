@@ -7,7 +7,171 @@ from PIL import Image
 import os
 import pywt
 import cv2
+import torchvision
 from .corruptions import *
+
+
+np.random.seed(42)
+
+def format_dataframe(directory, filter = None):
+    """
+    helper that converts the txt file into a dataframe
+    if filter is not none, returns the dataframe with only entries
+    comprised in the list filter
+
+    returns a pd.Dataframe
+        """
+    labels_raw = open(os.path.join(directory, 'val.txt')).read().split('\n')
+    labels_dict = {r[:28] : int(r[29:]) for r in labels_raw if r[:10] == 'ILSVRC2012'}
+    labels_true = pd.DataFrame.from_dict(labels_dict, orient = "index").reset_index()
+    labels_true.columns = ['name', 'label']
+    
+    if filter is not None:
+        labels_true = labels_true[labels_true['name'].isin(filter)] # restrict to the images studied
+    
+    return labels_true
+
+
+
+def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wavelet, model, batch_size = 128):
+    """
+    wrapper that computes for a set of images the robustness and the reconstruction depth, in two cases
+
+    computation of the robustness:
+    * share of correct predictions over a set of corrupted instances
+
+    computation of the reconstruction depth:
+    * reconstruction from sobol indices by decreasing order. Corresponds to the first image that is correctly
+      predicted by the model
+    * baseline image: either the true image or a corrupted image. In this case, the initial prediction is taken as the 
+      'true label' to recover from the reconstruction
+
+      
+    args:
+    - source_img_names: the name of the source images
+    - imagenet_dir : the directory where the images are stored
+    - labels_true : a pd.DataFrame of labels
+    - wavelet : the WaveletSobol explainer
+
+    returns : 
+    - robustness : a list with the robustnesses (comprised between 0 and 1)
+    - reconstruction depth: a dictoinnary with the reconstruction depths (integers) 
+                            keys corresponds to the cases ('source') or 'corrupted'
+
+    """
+
+    # misc transforms
+    resize_and_crop = torchvision.transforms.Compose([
+    torchvision.transforms.Resize(256),
+    torchvision.transforms.CenterCrop(224)
+    ])
+
+
+    # transforms
+    normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+
+    preprocessing = torchvision.transforms.Compose([
+        torchvision.transforms.Resize(256),
+        torchvision.transforms.CenterCrop(224),
+        torchvision.transforms.ToTensor(),
+        normalize,
+    ])
+
+    # source images
+    source_images = [Image.open(os.path.join(imagenet_dir, img_name)).convert('RGB') for img_name in source_img_names]
+    source_images = [resize_and_crop(im) for im in source_images]
+
+
+    # perturbed images
+    # compute the set of perturbed images
+    perturbed_images = {
+        img_name : compute_corrupted_images(image) for img_name, image in zip(source_img_names, source_images)
+    }
+
+    # compute the robustness and the reconstruction depth
+    robustness = []
+    reconstruction_depth = {
+        'source'  : [],
+        'corrupted' : []
+    }
+
+    for i, name in enumerate(list(perturbed_images.keys())):
+
+        # retrive the images
+        images = perturbed_images[name]
+
+        # transforms and convert as a tensor
+        x = torch.stack(
+            [preprocessing(img) for img in images]
+        )
+
+        # label
+        label = labels_true[labels_true['name'] == name]['label'].values
+
+        # evaluate the model and compute the robustness 
+        # append it to the list
+        preds = evaluate_model_on_samples(x, model, batch_size)
+        correct = sum(preds == label * np.ones(len(preds)))
+        robustness.append(correct / len(preds))
+
+        # compute the reconstruction depth on the source image and a random perturbed image
+        source_image = source_images[i]
+        index = np.random.randint(1,len(images), size = 1).item()
+        perturbed_image = images[index]
+
+        # compute the wcam
+        imgs = torch.stack(
+            [preprocessing(im) for im in [source_image, perturbed_image]]
+        )
+
+        # label
+        y = (label * np.ones(2)).astype(np.uint8)
+
+        # compute the explanations
+        explanations = wavelet(imgs, y)
+
+        # altered images: images that are reconstructed from the sobol index
+        reconstructed_images = {
+            'source' : reconstruct_images(np.array(source_image), explanations[0]),
+            'corrupted' : reconstruct_images(np.array(perturbed_image), explanations[1])
+        }
+
+        for case in reconstructed_images.keys():
+
+            images = reconstructed_images[case]
+
+            x = torch.stack(
+                [preprocessing(img) for img in images]  
+            )
+
+            reconstructed_preds = evaluate_model_on_samples(x, model, batch_size)
+
+            if case == 'source':
+            # we consider the true label as the baseline
+
+                # find the index of the first correct prediction
+                try:
+                    depth = np.min(np.where(reconstructed_preds == label * np.ones(len(reconstructed_preds)))[0])
+                except ValueError:
+                    depth = np.nan
+            else:
+                # we consider the prediction corresponding to the 
+                # altered image (in the baseline case) as the 'true label'
+                est_label = preds[index]
+                    # find the index of the first correct prediction
+                try:
+                    depth = np.min(np.where(reconstructed_preds == est_label * np.ones(len(reconstructed_preds)))[0])
+                except ValueError:
+                    depth = np.nan
+
+            reconstruction_depth[case].append(depth)
+
+    return robustness, reconstruction_depth
+
+
+
+
 
 def compute_corrupted_images(img):
     """
@@ -43,7 +207,7 @@ def compute_corrupted_images(img):
     for c in corruptions:
         dists[c] = []
         for i in range(6):
-            # compyute the perturbation
+            # compute the perturbation
             pert = corruption_functions[c](img, severity = i)
             # convert as PIL image if necessary
             if isinstance(pert, np.ndarray):
@@ -138,6 +302,11 @@ def compute_sparse_masks(arr):
     returns a sequence of binary masks with increasing coefficients
     """
 
+    # small routine to convert the mask as a uint8 image
+    if arr.dtype == 'float32':
+        normalized_map = NormalizeData(arr)
+        arr = (normalized_map * 255).astype(np.uint8)
+
     # Get the flattened indices of the elements in descending order
     flat_indices = np.argsort(arr.ravel())[::-1]
 
@@ -146,7 +315,6 @@ def compute_sparse_masks(arr):
     
     # number of positive coordinates
     n_pos = len(np.where(arr > 0)[0])
-    print(n_pos)
 
     # masks: for each additional coordinate 
     n_masks = n_pos + 1
@@ -259,8 +427,8 @@ def compute_average_classes(labels_wcam, wcams_dir, grid_size = 28):
         # add the class activation maps
         for image in images:
             img = np.array(Image.open(
-                os.path.join(wcams_dir, image).convert('L').astype(float)
-            ))
+                os.path.join(wcams_dir, image)).convert('L')
+            ).astype(float)
 
             classes[label] += img / 255 
 

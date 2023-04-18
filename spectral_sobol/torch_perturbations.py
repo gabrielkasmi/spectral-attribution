@@ -63,6 +63,7 @@ def wavelet(wavelet_transform, masks, wavelet = "haar"):
     return f
 
 def _baseline_ponderation(x, masks, x0):
+
     return x[None, :, :, :] * masks + (1.0 - masks) * x0[None, :, :, :]
 
 def _amplitude_operator(x, masks, sigma):

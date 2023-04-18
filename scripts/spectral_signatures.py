@@ -127,7 +127,7 @@ def compute_wcams(sample_list, model):
     # hard coded parameters
     grid_size = 28
     batch_size = 128
-    device = 'cuda'
+    # device = 'cuda'
     img_size = 224
 
     # transforms
@@ -145,7 +145,7 @@ def compute_wcams(sample_list, model):
 
 
     # model
-    net = torch.nn.DataParallel(model, device_ids=[0, 1, 2])
+    net = torch.nn.DataParallel(model, device_ids=[0, 1])
     net.to(f'cuda:{net.device_ids[0]}')
 
     # prepare the images
@@ -153,7 +153,7 @@ def compute_wcams(sample_list, model):
 
 
     # generate the samples and the labels
-    x = torch.stack([preprocessing(im) for im in images]).to(device)
+    x = torch.stack([preprocessing(im) for im in images])
     y = [image[1] for image in sample_list]
 
     wavelet = WaveletSobol(net, grid_size = grid_size, nb_design=8, batch_size = batch_size, opt = {'approximation' : False, 'size' : grid_size})
