@@ -98,8 +98,9 @@ class FourierSobol:
         input_shape = inputs.shape[2:]
         explanations = []
         reshaped_masks = generate_fourier_masks(self.masks,input_shape, self.grid_size, perturbation=self.perturbation)
+    
 
-        # self.dispersion = []
+        self.components = []
 
         for input, label in zip(inputs, labels):
 
@@ -149,8 +150,11 @@ class FourierSobol:
                 else:
                     sti = fourier_projection(sti_components, input_shape, self.grid_size, self.perturbation)
 
+            else:
+                sti = fourier_projection(sti_components, input_shape, self.grid_size, self.perturbation)
 
             explanations.append(sti)
+            self.components.append(sti_components)
 
 
         return explanations

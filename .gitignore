@@ -10,3 +10,4 @@ pytorch_grad_cam/__pycache__
 figs/
 assets/results_inference.csv
 assets/corrupted/
+figs.ipynb
