@@ -9,7 +9,485 @@ import pywt
 import cv2
 import torchvision
 from .corruptions import *
+from scipy.stats import wasserstein_distance
+import json
 
+
+def retrieve_edited_samples(path, name, preprocessing = None):
+    """
+    retrieves the imagenet-E samples
+    returns a list of PIL.Images with a 
+    given preprocessing
+    If preprocessing is none, a standard ImageNet preprocessing
+    is applied
+    """
+
+    if preprocessing is None:
+        preprocessing = torchvision.transforms.Compose([
+        torchvision.transforms.Resize(256),
+        torchvision.transforms.CenterCrop(224),
+    ])
+        
+    name = name[:-5]
+
+    # get the directories
+    kinds = [k for k in os.listdir(path) if not k in ['vis.py', 'labels.txt', 'eval.py', 'ori', 'full']]
+    raw = ['ori', 'full']
+
+
+    images = [preprocessing(Image.open(os.path.join(path, os.path.join(k, '{}.png'.format(name)))).convert('RGB')) for k in kinds]
+    for r in raw:
+        images.append(
+            preprocessing(Image.open(os.path.join(path, os.path.join(r, '{}.JPEG'.format(name)))).convert('RGB'))
+        )
+
+    return images
+
+
+def compute_wcam_on_source_and_altered_samples(model, img_names, samples, explainer, perturbation, opt):
+    """
+    computes the predictions and the explanations on the predictions
+    given a model and a sample
+
+    img_names : the name of the samples in the sample tensor
+    samples : a list of PIL images
+    explainer : a WaveletSobol instance
+    perturbation (str) : 'corruption' or 'editing'
+    opt : the dictionnary of parameters
+
+    ## ! ## For editing, we retrieve the samples from
+    the dataset, no alteration is comptuted on the fly
+    so the img_names list should correspond to images
+    that are contained in the dataset
+
+
+    returns a dictionnary with filtered items :
+    {img_name : 
+            {
+            source : (wcam, spatial_wcam),
+            target : [(wcam, spatial_wcam)]
+            }
+    }
+
+    and the dictionnary of the predictions
+    {img_name : 
+            {
+            source : pred,
+            target : [preds]
+            }
+    }
+    """
+
+    batch_size = opt['batch_size']
+    imagenet_e_directory = opt['imagenet_e_directory']
+    normalize = opt['normalization'] # a torchvision.Compose normalization
+
+    # compute the predictions on the source and target samples
+
+    x = torch.stack([
+        normalize(im) for im in samples
+    ])
+
+    # compute the target corruptions 
+    if perturbation == "corruptions":
+        corrupted_samples = [corrupt_image(im) for im in samples]
+    elif perturbation == "editing":
+        corrupted_samples = [retrieve_edited_samples(imagenet_e_directory, img_name) for img_name in img_names]
+
+    # corrupted_samples is a list of lists
+    # where each item corresponds to a sequence of perturbations 
+    # of one input image
+    # transform the corrupted_samples as a list of stacked tensors
+    corrupted_samples = [
+        torch.stack([normalize(im) for im in subset]) for subset in corrupted_samples
+    ]
+
+    preds_source = evaluate_model_on_samples(x, model, batch_size)
+
+    preds = {img_name : {} for img_name in img_names}
+
+    for i, img_name in enumerate(list(preds.keys())):
+
+        # baseline prediction:
+        preds[img_name]['source'] = preds_source[i]
+
+        # vector of prediction on the altered samlpes
+        preds_target = evaluate_model_on_samples(corrupted_samples[i], model, batch_size)
+        preds[img_name]['target'] = preds_target
+
+    # now that we've computed the predictions, we filter them to compute 
+    # the wcam of those that are differents
+
+    wcams = {}
+    for i, img_name in enumerate(preds.keys()):
+
+        # list of images and labels to explain
+        images_to_explain = []
+        preds_to_explain = []
+
+        # source image and label
+        images_to_explain.append(normalize(samples[i]))
+        preds_to_explain.append(
+            preds[img_name]['source']
+        )
+
+        # get the corrupted samples for this image
+        tmp_corrupted = corrupted_samples[i]
+
+        # now filter the predictions on the target domain to select
+        # the corrupted images from which we will compute the prediction
+
+        altered_indices = np.where(
+            preds[img_name]['target'] != preds[img_name]['source']
+        )[0]
+
+        if len(altered_indices) == 0: # pass if the model has not been affected by the 
+                                      # corruptions for this sample
+            continue
+        else:
+            # add the corresponding images to the list 
+            # of samples to explain
+            for altered_index in altered_indices:
+
+
+                images_to_explain.append(tmp_corrupted[altered_index])
+                preds_to_explain.append(
+                    preds[img_name]['target'][altered_index]
+                )
+
+            # prepare the data
+            x = torch.stack(
+                images_to_explain
+            )
+            y = np.array(preds_to_explain).astype(np.uint8)
+
+            # compute the explanations
+            explanations = explainer(x,y)
+
+            # add the explanations to the dictionnary
+
+            wcams[img_name] = {
+                'source' : (explanations[0], explainer.spatial_cam[0]),
+                'target' : [(wcam, spatial_wcam) for wcam, spatial_wcam in zip(explanations[1:], explainer.spatial_cam[1:])] 
+            }
+
+    # returns
+    return wcams, preds
+
+
+def postprocess(wcams, preds, target_dir):
+    """
+    save the generated data under the following structure
+
+    target_dir/img_name/
+                - wcam_source
+                - spatial_wcam_source
+                - wcam_target_1
+                - spatial_wcam_target_1.png
+                - ...
+                - preds.json
+
+    """
+    def NormalizeData(data):
+        """helper to normalize in [0,1] for the plots"""
+        return (data - np.min(data)) / (np.max(data) - np.min(data))
+
+    def normalize_and_save(wcam, spatial_wcam, destination, label):
+        """
+        saves the wcam and the spatial wcam
+        """
+        normalized_wcam = NormalizeData(wcam)
+        normalized_swcam = NormalizeData(spatial_wcam)
+
+        img_wcam = Image.fromarray((normalized_wcam * 255).astype(np.uint8))
+        img_swcam = Image.fromarray((normalized_swcam * 255).astype(np.uint8))
+
+        img_wcam.save(os.path.join(destination, 'wcam_{}.png'.format(label)))
+        img_swcam.save(os.path.join(destination, 'spatial_wcam_{}.png'.format(label)))      
+
+    # set up the directory
+    img_names = list(wcams.keys())
+
+    # save the wcams
+    for img_name in img_names:
+
+        destination = os.path.join(target_dir, img_name)
+        if not os.path.exists(destination):
+            os.mkdir(destination)
+
+        # retrieve the wcam
+        source_wcam, source_spatial_wcam = wcams[img_name]['source']
+        # export the wcam
+        normalize_and_save(source_wcam, source_spatial_wcam, destination, 'source')
+
+        # retrive the target_wcams
+        for i, items in enumerate(wcams[img_name]['target']):
+            target_wcam, target_spatial_wcam = items
+            normalize_and_save(target_wcam, target_spatial_wcam, destination, 'target_{}'.format(i))
+
+    # save the preds
+    with open(os.path.join(target_dir, 'preds.json'), 'w') as f:
+        json.dump(preds, f, cls = NpEncoder)
+
+# now compute the distance between 
+def compute_distance_between_wcams(wcams, labels, classes, distance = 'wasserstein', sample = 100):
+    """
+    returns the distance between the input wcam with a label label
+    and wcams from the classes dictionnary
+    """
+
+    if distance == 'wasserstein':
+        dist = wasserstein_distance_2d
+    elif distance == 'euclidean':
+        dist = frobenius_distance_2d
+    elif distance == 'mmd':
+        dist = mmd_distance
+
+    # distances = np.zeros((len(wcams), 2))
+    ranks = []
+
+    for i, (wcam, label) in enumerate(zip(wcams, labels)):
+
+        # get the wcam corresponding to the class
+        class_wcam = classes[label]
+
+        # randomly sample another label and retrieve the 
+        remaining_labels = [l for l in classes.keys() if not l == label]
+        rls = np.random.choice(remaining_labels, size = sample)
+
+        random_dists = []
+        for rl in rls:
+            random_wcam = classes[rl]
+            random_dists.append(dist(wcam, random_wcam))
+
+        ref_dist = dist(wcam, class_wcam)
+        random_dists.append(ref_dist)
+        sorted_list = np.sort(random_dists)
+        ranks.append(list(sorted_list).index(ref_dist))
+        # we have a set of distances and the true distance
+        # compute the rank
+        # distances[i,0] = dist(wcam, class_wcam)
+        # distances[i,1] = dist(wcam, random_wcam)
+
+    return ranks
+
+def wasserstein_distance_2d(a, b):
+    """
+    Computes the Wasserstein distance between two 2D numpy arrays.
+
+    Parameters:
+    a (numpy.ndarray): The first 2D numpy array.
+    b (numpy.ndarray): The second 2D numpy array.
+
+    Returns:
+    float: The Wasserstein distance between the two arrays.
+    """
+
+    # Reshape the arrays into 1D arrays
+    a = a.flatten()
+    b = b.flatten()
+
+    # Normalize the arrays to make them probability distributions
+    a = a / np.sum(a)
+    b = b / np.sum(b)
+
+    # Compute the Wasserstein distance between the two distributions
+    w_dist = wasserstein_distance(a, b)
+
+    return w_dist
+
+def frobenius_distance_2d(a, b):
+    """
+    Computes the Frobenius distance between two 2D numpy arrays.
+
+    Parameters:
+    a (numpy.ndarray): The first 2D numpy array.
+    b (numpy.ndarray): The second 2D numpy array.
+
+    Returns:
+    float: The Frobenius distance between the two arrays.
+    """
+
+    # Compute the element-wise difference between the two arrays
+    diff = a - b
+
+    # Compute the Euclidean norm of the difference array
+    frob_dist = np.linalg.norm(diff)
+
+    return frob_dist
+
+def mmd_distance(a, b, kernel_type='laplacian', gamma=None):
+    """
+    Computes the Maximum Mean Discrepancy (MMD) between two 2D numpy arrays.
+
+    Parameters:
+    a (numpy.ndarray): The first 2D numpy array.
+    b (numpy.ndarray): The second 2D numpy array.
+    kernel_type (str): The type of kernel to use for computing the MMD. Can be either 'gaussian' or 'laplacian'.
+    gamma (float): The gamma parameter for the Gaussian or Laplacian kernel. If None, the gamma parameter will be
+                   automatically set based on the median distance between the samples.
+
+    Returns:
+    float: The MMD between the two arrays.
+    """
+
+    if kernel_type == 'gaussian':
+        kernel_func = gaussian_kernel
+    elif kernel_type == 'laplacian':
+        kernel_func = laplacian_kernel
+    else:
+        raise ValueError('Invalid kernel type. Must be either "gaussian" or "laplacian".')
+
+    # Compute the kernel matrices for the two arrays
+    K_aa = kernel_func(a, a, gamma)
+    K_ab = kernel_func(a, b, gamma)
+    K_bb = kernel_func(b, b, gamma)
+
+    # Compute the MMD
+    mmd = np.mean(K_aa) + np.mean(K_bb) - 2 * np.mean(K_ab)
+
+    return mmd
+
+
+def gaussian_kernel(x, y, gamma=None):
+    """
+    Computes the Gaussian kernel between two 2D numpy arrays.
+
+    Parameters:
+    x (numpy.ndarray): The first 2D numpy array.
+    y (numpy.ndarray): The second 2D numpy array.
+    gamma (float): The gamma parameter for the Gaussian kernel. If None, the gamma parameter will be
+                   automatically set based on the median distance between the samples.
+
+    Returns:
+    numpy.ndarray: The kernel matrix.
+    """
+
+    if gamma is None:
+        gamma = 1 / np.median(pairwise_distances(x, y))
+
+    pairwise_dists = pairwise_distances(x, y)
+    kernel_matrix = np.exp(-gamma * pairwise_dists ** 2)
+
+    return kernel_matrix
+
+
+def laplacian_kernel(x, y, gamma=None):
+    """
+    Computes the Laplacian kernel between two 2D numpy arrays.
+
+    Parameters:
+    x (numpy.ndarray): The first 2D numpy array.
+    y (numpy.ndarray): The second 2D numpy array.
+    gamma (float): The gamma parameter for the Laplacian kernel. If None, the gamma parameter will be
+                   automatically set based on the median distance between the samples.
+
+    Returns:
+    numpy.ndarray: The kernel matrix.
+    """
+
+    if gamma is None:
+        gamma = 1 / np.median(pairwise_distances(x, y))
+
+    pairwise_dists = pairwise_distances(x, y)
+    kernel_matrix = np.exp(-gamma * pairwise_dists)
+
+    return kernel_matrix
+
+
+def pairwise_distances(x, y):
+    """
+    Computes the pairwise Euclidean distances between two numpy arrays.
+
+    Parameters:
+    x (numpy.ndarray): The first numpy array.
+    y (numpy.ndarray): The second numpy array.
+
+    Returns:
+    numpy.ndarray: The pairwise distances matrix.
+    """
+
+    n_x = x.shape[0]
+    n_y = y.shape[0]
+
+    dist_matrix = np.zeros((n_x, n_y))
+
+    for i in range(n_x):
+        for j in range(n_y):
+            dist_matrix[i, j] = np.sqrt(np.sum((x[i] - y[j]) ** 2))
+
+    return dist_matrix
+
+
+
+
+def compute_spectral_profile(item_names, label, opt):
+    """
+    computes the spectral profile based on the items in item names
+    and the model passed as input
+
+    returns a np.ndarray corresponding to the spectral profile
+    """
+    # retrive the parameters
+    source_dir = opt['source_dir']
+    preprocessing = opt['preprocessing']
+    normalize = opt['normalize']
+    explainer = opt['explainer']
+
+    # load and set up the images
+    images = [preprocessing(Image.open(os.path.join(source_dir, item)).convert('RGB')) for item in item_names]
+
+    x = torch.stack([
+        normalize(im) for im in images
+    ])
+
+    y = (label * np.ones(len(item_names))).astype(np.uint8)
+
+    # explainer
+    explanations = explainer(x,y)
+
+    # now that the explanations are computed, average them and return the average
+    return np.mean(np.array(explanations), axis = 0)
+
+def reshape_wcam(arr, grid_size, levels):
+    """
+    computes the average importance across each location 
+    of the wavelet transform
+
+    return coeff, an array of shape (levels * 3) that contains 
+    the importance of each coeffs 
+    """
+
+    coeffs = []
+
+    for level in range(levels):
+
+        # split the array by type of coefficient
+        start, end = grid_size // 2 ** (level + 1), grid_size // 2 ** level
+        shape = (end - start) ** 2 
+
+        # sum the values for the horizontal, vertical
+        # and diagonal coefficients
+        if not level == levels - 1:
+
+            shape = (end - start) ** 2 
+            h = np.sum(arr[:start, start:end]) / shape
+            d = np.sum(arr[start:end, start:end]) / shape
+            v = np.sum(arr[start:end, :start]) /shape
+    
+            # sort them and append to the list
+            coeffs.append([h,d,v])
+        else:
+
+            d = np.sum(arr[:end, :end]) / shape
+            coeffs.append([d])
+
+
+    # reverse the list to get the lowest frequencies first
+    coeffs = coeffs[::-1]
+
+    # flatten the list and return it
+    return np.array(list(sum(coeffs, [])))
 
 np.random.seed(42)
 
@@ -222,7 +700,16 @@ def compute_corrupted_images(img):
     # etc.
     return list(sum([dists[c] for c in dists.keys()], []))
 
-
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            # 👇️ alternatively use str()
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 def NormalizeData(data):
     """helper to normalize in [0,1] for the plots"""

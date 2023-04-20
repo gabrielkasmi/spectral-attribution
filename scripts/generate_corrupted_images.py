@@ -36,20 +36,16 @@ corruption_functions = {
     'defocus-blur'           : make_imagenetc.defocus_blur,
     'brightness'             : make_imagenetc.brightness,
     'spatter'                : make_imagenetc.spatter,
-    #'zoom-blur'              : make_imagenetc.zoom_blur,
     'jpeg'                   : make_imagenetc.jpeg_compression,
     'saturate'               : make_imagenetc.saturate,
     'pixelate'               : make_imagenetc.pixelate,
     'impulse-noise'          : make_imagenetc.impulse_noise,
-    #'frost'                  : make_imagenetc.frost,
     'gaussian-noise'         : make_imagenetc.gaussian_noise,
     'contrast'               : make_imagenetc.contrast,
     'glass-blur'             : make_imagenetc.glass_blur,
     'elastic-transformation' : make_imagenetc.elastic_transform,
     'shot-noise'             : make_imagenetc.shot_noise,
     'gaussian-blur'          : make_imagenetc.gaussian_blur,
-    # 'snow'                   : make_imagenetc.snow,
-    #"fog"                    : make_imagenetc.fog
 }
 
 

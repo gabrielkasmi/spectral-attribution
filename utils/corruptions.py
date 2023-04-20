@@ -61,3 +61,32 @@ def generate_corruptions(path):
         images.append(dists[c])
 
     return images
+
+def corrupt_image(img):
+    """
+    same-ish as the previous function, but with
+    an image as input and does not include the raw
+    uncorrupted image
+    """
+    
+    images = []
+
+    dists = {
+            c : corruption_functions[c](img, severity = k) for (c, k) in zip(corruption_functions.keys(), np.random.randint(1,6, size = corruptions))
+        }
+    
+    # get the images in the correct format
+    for c in dists.keys():
+        
+        img = dists[c]
+        
+        if isinstance(img, np.ndarray):
+            d = img.astype(np.uint8)
+            dists[c] = Image.fromarray(d).convert('RGB')
+
+
+    for c in dists.keys():
+        images.append(dists[c])
+
+    return images
+

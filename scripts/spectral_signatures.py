@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description = 'Computation of the spectral sign
 parser.add_argument('--count', default = 5000, help = "total number of samples to generate", type=int)
 parser.add_argument('--batch', default = 10, help = "number of samples per (meta)-batch", type=int)
 parser.add_argument('--target_dir', default = '../../data/wcams-imagenet', help = "directory where the samples will be stored", type=str)
-parser.add_argument('--backbone', default = 'vitb16', help = "name of the backbone under consideration", type=str)
+parser.add_argument('--backbone', default = 'dino', help = "name of the backbone under consideration", type=str)
 parser.add_argument('--source_dir', default = '../../data/ImageNet', help = "directory where IN validation set is located", type=str)
 
 args = parser.parse_args()
@@ -46,6 +46,9 @@ elif backbone == "vgg":
 
 elif backbone == 'vitb16':
     model = vit_b_16(pretrained = True)
+
+elif backbone == 'dino':
+    model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
 
 ## add models here
 
@@ -127,7 +130,6 @@ def compute_wcams(sample_list, model):
     # hard coded parameters
     grid_size = 28
     batch_size = 128
-    # device = 'cuda'
     img_size = 224
 
     # transforms
