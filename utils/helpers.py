@@ -13,6 +13,73 @@ from scipy.stats import wasserstein_distance
 import json
 
 
+def initialize_samples(source_img_names, imagenet_dir, imagenet_e_directory, target_dir, perturbation = None):
+    """
+    initializes the perturbed samples
+
+    returns a dictionnary of perturbed samples
+    """
+
+    # misc transforms
+    resize_and_crop = torchvision.transforms.Compose([
+    torchvision.transforms.Resize(256),
+    torchvision.transforms.CenterCrop(224)
+    ])
+
+    # directory set up
+    # see if the directory of perturbed images already exists
+    directory_name = 'images_{}'.format(perturbation)
+
+    # see if we need to create the images or not
+    read = os.path.exists(os.path.join(target_dir, directory_name))
+
+    if not read:
+        os.mkdir(os.path.join(target_dir, directory_name))
+
+        # source images
+        source_images = [Image.open(os.path.join(imagenet_dir, img_name)).convert('RGB') for img_name in source_img_names]
+        source_images = [resize_and_crop(im) for im in source_images]
+
+        # perturbed images
+        # compute the set of perturbed images
+        if perturbation == "corruptions":
+            perturbed_images = {
+                img_name : compute_corrupted_images(image) for img_name, image in zip(source_img_names, source_images)
+            }
+
+        elif perturbation == "editing":
+            perturbed_images = {
+                img_name : retrieve_edited_samples(imagenet_e_directory, img_name) for img_name in source_img_names for img_name in source_img_names
+            }
+
+        else:
+            raise ValueError
+        
+
+        # save the images
+        for img_name in perturbed_images.keys():
+
+            tmp = os.path.join(os.path.join(os.path.join(target_dir, directory_name), img_name))
+            os.mkdir(tmp)
+
+            for i,image in enumerate(perturbed_images[img_name]):
+
+                name = '{}_{}.png'.format(perturbation, i)
+                image.save(os.path.join(tmp, name))
+
+        
+    else: # open the images
+        
+        perturbed_images = {}
+        
+        for img_name in source_img_names:
+
+            tmp_dir = os.path.join(os.path.join(target_dir, directory_name), img_name)
+            perturbed_images[img_name] = [Image.open(os.path.join(tmp_dir, im)).convert('RGB') for im in os.listdir(tmp_dir)]
+
+    return perturbed_images
+
+
 def load_image(source, name, preprocessing = None):
     """
     loads and returns a list of edited images
@@ -166,7 +233,6 @@ def compute_wcam_on_source_and_altered_samples(model, img_names, samples, explai
             # add the corresponding images to the list 
             # of samples to explain
             for altered_index in altered_indices:
-
 
                 images_to_explain.append(tmp_corrupted[altered_index])
                 preds_to_explain.append(
@@ -529,7 +595,7 @@ def format_dataframe(directory, filter = None):
 
 
 
-def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wavelet, model, batch_size = 128):
+def compute_robustness_and_depth(source_img_names, imagenet_dir, imagenet_e_directory, target_dir, labels_true, wavelet, model, batch_size = 128, perturbation = None):
     """
     wrapper that computes for a set of images the robustness and the reconstruction depth, in two cases
 
@@ -546,13 +612,15 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
     args:
     - source_img_names: the name of the source images
     - imagenet_dir : the directory where the images are stored
+    - imagenet_e_dir : the directory where the edited images are stored
     - labels_true : a pd.DataFrame of labels
     - wavelet : the WaveletSobol explainer
 
     returns : 
-    - robustness : a list with the robustnesses (comprised between 0 and 1)
     - reconstruction depth: a dictoinnary with the reconstruction depths (integers) 
-                            keys corresponds to the cases ('source') or 'corrupted'
+                            keys corresponds to the cases 'source' or 'corrupted'
+                            also contains the robustness, a list with the robustnesses 
+                            (comprised between 0 and 1)
 
     """
 
@@ -562,14 +630,13 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
     torchvision.transforms.CenterCrop(224)
     ])
 
-
     # transforms
     normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225])
 
     preprocessing = torchvision.transforms.Compose([
-        torchvision.transforms.Resize(256),
-        torchvision.transforms.CenterCrop(224),
+#        torchvision.transforms.Resize(256),
+#        torchvision.transforms.CenterCrop(224),
         torchvision.transforms.ToTensor(),
         normalize,
     ])
@@ -578,12 +645,15 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
     source_images = [Image.open(os.path.join(imagenet_dir, img_name)).convert('RGB') for img_name in source_img_names]
     source_images = [resize_and_crop(im) for im in source_images]
 
+    # source predictions 
+    x_source = torch.stack([
+        preprocessing(im) for im in source_images
+    ])
 
-    # perturbed images
-    # compute the set of perturbed images
-    perturbed_images = {
-        img_name : compute_corrupted_images(image) for img_name, image in zip(source_img_names, source_images)
-    }
+    source_preds = evaluate_model_on_samples(x_source, model, batch_size)
+
+    # open or initialize the samples list
+    perturbed_images = initialize_samples(source_img_names, imagenet_dir, imagenet_e_directory, target_dir, perturbation = perturbation)
 
     # compute the robustness and the reconstruction depth
     robustness = []
@@ -594,6 +664,7 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
 
     for i, name in enumerate(list(perturbed_images.keys())):
 
+
         # retrive the images
         images = perturbed_images[name]
 
@@ -603,7 +674,7 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
         )
 
         # label
-        label = labels_true[labels_true['name'] == name]['label'].values
+        label = source_preds[i]
 
         # evaluate the model and compute the robustness 
         # append it to the list
@@ -625,6 +696,8 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
         y = (label * np.ones(2)).astype(np.uint8)
 
         # compute the explanations
+
+
         explanations = wavelet(imgs, y)
 
         # altered images: images that are reconstructed from the sobol index
@@ -642,7 +715,7 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
             )
 
             reconstructed_preds = evaluate_model_on_samples(x, model, batch_size)
-
+    
             if case == 'source':
             # we consider the true label as the baseline
 
@@ -663,10 +736,11 @@ def compute_robustness_and_depth(source_img_names, imagenet_dir, labels_true, wa
 
             reconstruction_depth[case].append(depth)
 
-    return robustness, reconstruction_depth
 
+    # add the robustness as an additional key
+    reconstruction_depth['robustness'] = robustness
 
-
+    return reconstruction_depth
 
 
 def compute_corrupted_images(img):
@@ -806,7 +880,6 @@ def compute_sparse_masks(arr):
     """
     returns a sequence of binary masks with increasing coefficients
     """
-
     # small routine to convert the mask as a uint8 image
     if arr.dtype == 'float32':
         normalized_map = NormalizeData(arr)
@@ -869,6 +942,7 @@ def reconstruct_images(image, cam, levels = 3):
 
         # add to the list
         images.append(pert)
+
 
     return images
 
