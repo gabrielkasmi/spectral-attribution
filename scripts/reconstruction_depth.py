@@ -27,9 +27,9 @@ import json
 parser = argparse.ArgumentParser(description = 'Computation of the robustness depth')
 
 parser.add_argument('--perturbation', default = 'corruptions', help = "corruption considered", type=str)
-parser.add_argument('--sample_size', default = 10, help = "number of images to consider", type=int)
-parser.add_argument('--grid_size' , default = 8, type = int)
-parser.add_argument('--nb_design', default = 2, type = int)
+parser.add_argument('--sample_size', default = 100, help = "number of images to consider", type=int)
+parser.add_argument('--grid_size' , default = 28, type = int)
+parser.add_argument('--nb_design', default = 4, type = int)
 parser.add_argument('--batch_size', default = 128, type = int)
 
 args = parser.parse_args()
@@ -64,7 +64,8 @@ device = 'cuda:1'
 #               - ST : standard training ('baseline')
 
 models_dir = '../../models/spectral-attribution-baselines'
-cases = ['pixmix', 'baseline', 'augmix']#, 'sin', 'adv_free', 'fast_adv', 'adv']
+# cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
+cases = ['baseline', 'sin', 'adv']
 
 # load the models
 models = []

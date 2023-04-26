@@ -13,6 +13,25 @@ from scipy.stats import wasserstein_distance
 import json
 
 
+def return_intersection(preds):
+    """
+    returns the intersection between the sets that compose the preds list
+    returns as a list
+    """
+
+    if len(preds) == 1:
+        inter_preds = preds[0]
+    elif len(preds) == 2:
+        inter_preds = preds[0].intersection(preds[1])
+
+    else:
+        inter_preds = preds[0].intersection(preds[1])
+
+        for i in range(2, len(preds)):
+            inter_preds = inter_preds.intersection(preds[i])
+            
+    return list(inter_preds)
+
 def initialize_samples(source_img_names, imagenet_dir, imagenet_e_directory, target_dir, perturbation = None):
     """
     initializes the perturbed samples
@@ -259,7 +278,7 @@ def compute_wcam_on_source_and_altered_samples(model, img_names, samples, explai
     return wcams, preds
 
 
-def postprocess(wcams, preds, target_dir):
+def postprocess(explanations, spatial_cams, destination, images_data):
     """
     save the generated data under the following structure
 
@@ -269,8 +288,6 @@ def postprocess(wcams, preds, target_dir):
                 - wcam_target_1
                 - spatial_wcam_target_1.png
                 - ...
-                - preds.json
-
     """
     def NormalizeData(data):
         """helper to normalize in [0,1] for the plots"""
@@ -289,30 +306,42 @@ def postprocess(wcams, preds, target_dir):
         img_wcam.save(os.path.join(destination, 'wcam_{}.png'.format(label)))
         img_swcam.save(os.path.join(destination, 'spatial_wcam_{}.png'.format(label)))      
 
-    # set up the directory
-    img_names = list(wcams.keys())
 
-    # save the wcams
-    for img_name in img_names:
+    for i, _ in enumerate(images_data):
 
-        destination = os.path.join(target_dir, img_name)
-        if not os.path.exists(destination):
-            os.mkdir(destination)
+        if i == 0:
+            label = 'source'
+        else:
+            label = 'target_{}'.format(i)
 
-        # retrieve the wcam
-        source_wcam, source_spatial_wcam = wcams[img_name]['source']
-        # export the wcam
-        normalize_and_save(source_wcam, source_spatial_wcam, destination, 'source')
+        wcam = explanations[i]
+        spatial_cam = spatial_cams[i]
+        normalize_and_save(wcam, spatial_cam, destination, label)
 
-        # retrive the target_wcams
-        for i, items in enumerate(wcams[img_name]['target']):
-            target_wcam, target_spatial_wcam = items
-            normalize_and_save(target_wcam, target_spatial_wcam, destination, 'target_{}'.format(i))
-
-    # save the preds
-    with open(os.path.join(target_dir, 'preds.json'), 'w') as f:
-        json.dump(preds, f, cls = NpEncoder)
-
+ #    # set up the directory
+ #    # img_names = list(wcams.keys())
+# 
+ #    # save the wcams
+ #    for img_name in img_names:
+# 
+ #        destination = os.path.join(target_dir, img_name)
+ #        if not os.path.exists(destination):
+ #            os.mkdir(destination)
+# 
+ #        # retrieve the wcam
+ #        source_wcam, source_spatial_wcam = wcams[img_name]['source']
+ #        # export the wcam
+ #        normalize_and_save(source_wcam, source_spatial_wcam, destination, 'source')
+# 
+ #        # retrive the target_wcams
+ #        for i, items in enumerate(wcams[img_name]['target']):
+ #            target_wcam, target_spatial_wcam = items
+ #            normalize_and_save(target_wcam, target_spatial_wcam, destination, 'target_{}'.format(i))
+# 
+ #    # save the preds
+ #    # with open(os.path.join(target_dir, 'preds.json'), 'w') as f:
+ #    #    json.dump(preds, f, cls = NpEncoder)
+# 
 # now compute the distance between 
 def compute_distance_between_wcams(wcams, labels, classes, distance = 'wasserstein', sample = 100):
     """
