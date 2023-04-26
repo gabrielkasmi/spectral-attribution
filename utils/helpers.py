@@ -13,6 +13,24 @@ from scipy.stats import wasserstein_distance
 import json
 
 
+def load_image(source, name, preprocessing = None):
+    """
+    loads and returns a list of edited images
+    """
+
+    if preprocessing is None:
+        preprocessing = torchvision.transforms.Compose([
+        torchvision.transforms.Resize(256),
+        torchvision.transforms.CenterCrop(224),
+        ])
+
+    image = preprocessing(
+        Image.open(os.path.join(source,name)).convert('RGB')
+    )
+
+    return image
+    
+
 def retrieve_edited_samples(path, name, preprocessing = None):
     """
     retrieves the imagenet-E samples

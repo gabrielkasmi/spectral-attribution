@@ -12,3 +12,5 @@ assets/results_inference.csv
 assets/corrupted/
 figs.ipynb
 notebooks/.ipynb_checkpoints/
+notebooks/old
+
