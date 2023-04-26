@@ -23,10 +23,10 @@ import pandas as pd
 # arguments
 parser = argparse.ArgumentParser(description = 'Computation of the spectral signatures')
 
-parser.add_argument('--perturbation', default = 'editing', help = "corruption considered", type=str)
-parser.add_argument('--sample_size', default = 10, help = "number of images to consider", type=int)
-parser.add_argument('--grid_size' , default = 4, type = int)
-parser.add_argument('--nb_design', default = 2, type = int)
+parser.add_argument('--perturbation', default = 'corruptions', help = "corruption considered", type=str)
+parser.add_argument('--sample_size', default = 5, help = "number of images to consider", type=int)
+parser.add_argument('--grid_size' , default = 28, type = int)
+parser.add_argument('--nb_design', default = 4, type = int)
 parser.add_argument('--batch_size', default = 128, type = int)
 
 
@@ -79,8 +79,8 @@ device = 'cuda:2'
 #               - ST : standard training ('baseline')
 
 models_dir = '../../models/spectral-attribution-baselines'
-# cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
-cases = ['baseline', 'sin', 'adv']
+cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
+# cases = ['baseline', 'sin', 'adv']
 
 # load the models
 models = []
@@ -165,7 +165,7 @@ def main():
 
         images_list = labels['name'].values
 
-        n_samples = 4 * batch_size
+        # n_samples = 4 * batch_size
         completed_samples = len(img_names)
 
         # number of images that have been created so far
@@ -177,11 +177,10 @@ def main():
 
             # remaining items 
             remaining_items = [i for i in images_list if not i in completed_images]
-            print(len(remaining_items))
 
             # initialize the target names
             np.random.seed(42)
-            target_names = np.random.choice(remaining_items, 2)
+            target_names = np.random.choice(remaining_items, 50)
 
             # source images
             source_images = [Image.open(os.path.join(imagenet_directory, img_name)).convert('RGB') for img_name in target_names]
@@ -202,7 +201,6 @@ def main():
             else:
                 raise ValueError
 
-            print('Corrupted images generated, now evaluating')
             # x_source
             x_source = torch.stack([
                 normalize(im) for im in source_images
@@ -241,10 +239,10 @@ def main():
 
                     # source prediction
                     source_y = source_preds[i]
-                    target_y = target_preds[image]
+                    target_y = target_preds[img_name]
 
                     # identify the indices for which the prediction has changed
-                    changed_indices = np.where(target_y != source_y * np.ones(len(target_preds)))[0]
+                    changed_indices = np.where(np.array(target_y) != source_y * np.ones(len(target_y)))[0].tolist()
 
                     # save the changed indices for the current image
                     changed_predictions[img_name] = changed_indices
@@ -281,9 +279,6 @@ def main():
                     for index in intersection:
                         images_to_keep[image_name].append(perturbed_images[image_name][index])
 
-            print('Results dataframe to keep')
-            print(results)
-
             # save the images to keep
             if len(images_to_keep.keys()) > 0:
                 for image_name in images_to_keep.keys():
@@ -297,8 +292,14 @@ def main():
                     images[0].save(os.path.join(dest, "source.png"))
                     
                     # save the altered images 
-                    for i, image in enumerate(images[1:]):
-                        image.save(os.path.join(dest, 'altered_{}.png'.format(i)))
+
+                    if len(images) > 5: # save at most 5 images to limit the computational cost 
+
+                        for i, image in enumerate(images[1:5]):
+                            image.save(os.path.join(dest, 'altered_{}.png'.format(i)))
+                    else:
+                        for i, image in enumerate(images[1:]):
+                            image.save(os.path.join(dest, 'altered_{}.png'.format(i)))
 
 
                 # update the list of images that have been proceeded
@@ -332,6 +333,8 @@ def main():
                                     std=[0.229, 0.224, 0.225])
     ])
 
+    opt = {'approximation' : False} # remove the approximation coefficients from the coputation
+
     for image_name in img_names:
 
         dest = os.path.join(target_folder, image_name)
@@ -352,7 +355,7 @@ def main():
             y = helpers.evaluate_model_on_samples(x, model, batch_size).astype(np.uint8)
 
             # Compute the explanations
-            wavelet = WaveletSobol(model, grid_size = grid_size, nb_design = nb_design, batch_size = batch_size)
+            wavelet = WaveletSobol(model, grid_size = grid_size, nb_design = nb_design, batch_size = batch_size, opt = opt)
             explanations = wavelet(x,y)
             spatial_cams = wavelet.spatial_cam
 
