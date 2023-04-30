@@ -11,12 +11,299 @@ import torchvision
 from .corruptions import *
 from scipy.stats import wasserstein_distance
 import json
+import matplotlib.pyplot as plt
+import torch
+from spectral_sobol.torch_explainer import WaveletSobol
+from torchvision.models import resnet50, vgg16, vit_b_16
+
+
+def load_model(model_name, device, models_dir = '../../models/spectral-attribution-baselines'):
+    """
+    loads a model
+    """
+
+    if model_name == "vit":
+        model = vit_b_16(pretrained = True).to(device).eval()
+    elif model_name == "vgg": 
+        model = vgg16(pretrained = True).to(device).eval()   
+    elif model_name == 'baseline':
+        model = resnet50(pretrained = True).to(device).eval()
+    elif model_name in ['augmix', 'pixmix', 'sin']:
+        model = resnet50(pretrained = False) # model backbone #torch.load(os.path.join(models_dir, '{}.pth'.format(case))).eval()
+        weights = torch.load(os.path.join(models_dir, '{}.pth.tar').format(model_name))
+        model.load_state_dict(weights['state_dict'], strict = False)
+        model.to(device)
+        model.eval()
+    elif model_name in ['adv_free', 'fast_adv', 'adv']:
+        model = resnet50(pretrained = False) # model backbone #torch.load(os.path.join(models_dir, '{}.pth'.format(case))).eval()
+        weights = torch.load(os.path.join(models_dir, "{}.pth".format(model_name)))
+        model.load_state_dict(weights)
+        model.to(device)
+        model.eval()
+
+    return model
+
+
+def find_stable_predictions(image_name, model, directory, perturbation, batch_size = 128):
+    """
+    perturbs the image passed as input and evaluates the model
+    on the perturbed samples. 
+
+    then returns the number of desired images (default : 1) for which 
+    the prediction is the same
+    """  
+
+    # transforms
+    # for the editing case
+    resize_and_crop = torchvision.transforms.Compose([
+    torchvision.transforms.Resize(256),
+    torchvision.transforms.CenterCrop(224)
+    ])
+
+    # normalisation for inference
+    normalize = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+    ])
+
+    image = Image.open(os.path.join(directory, 'source.png')).convert('RGB')
+
+    # perturb the image
+    # perturbed images
+    # compute the set of perturbed images
+    if perturbation == "corruptions":
+        perturbed_images = compute_corrupted_images(image) 
+
+    elif perturbation == "editing":
+        
+        perturbed_images = retrieve_edited_samples(directory, image_name)
+        perturbed_images = [resize_and_crop(im) for im in perturbed_images]
+
+    # evaluate the model on the perturbed set of images
+    # add the unaffected image at the beginning
+    perturbed_images.insert(0, image)
+
+    # normalization
+    x = torch.stack([
+        normalize(im) for im in perturbed_images
+    ])
+
+    preds = evaluate_model_on_samples(x, model, batch_size)
+    initial_pred = preds[0]
+
+    correct_cases = np.where(np.array(preds[1:]) == initial_pred * np.ones(len(preds) - 1))[0].tolist()
+
+    # retrieve the indices for which the model was not affected
+    index = np.random.choice(correct_cases, 1).item()
+
+    return [image, perturbed_images[index]], initial_pred
+
+def plot_wcams_horizontal(images, explanations, labels, case, save = None):
+    """
+    plots a set of wcams
+    """
+
+    levels = 3
+    size = 224
+
+    n_cols = len(images)
+
+    fig, ax = plt.subplots(2, n_cols, figsize = (4 * n_cols, 8))
+    plt.rcParams.update({'font.size': 17})
+
+
+    # first row: images
+    # second row: wcams
+    for i in range(n_cols):
+        ax[0,i].imshow(images[i])
+        ax[0,i].axis('off')
+        title = 'Image \n {}'
+        ax[0,i].set_title(title.format(labels[i]))
+
+        ax[1,i].imshow(explanations[i], cmap = 'jet')
+        ax[1,i].set_title("WCAM")
+        ax[1,i].axis('off')
+        add_lines(size, levels, ax[1,i])
+
+    plt.suptitle('Case : {}'.format(case))
+    fig.tight_layout()
+
+    if save is not None:
+
+        plt.savefig(save)
+        plt.show()
+        plt.close()
+    
+    else:
+        plt.show()
+
+    return None
+
+def plot_stable_and_unstable_prediction(image_name, model, directory, corruption, case, labels, save = None):
+    """
+    finds the wcam on altered samples and coputes the wcam on an unaltered sample
+
+    'case' (str) the case to consider (e.g., baseline, etc)
+    'label' (list) labels to be displayed on the plot
+    """
+
+    batch_size = 128 if not 'case' == 'vit' else 64
+
+    # get the wcam altered
+    indices = [int(t.split('_')[1][:-4]) for t in os.listdir(directory) if t[:7] == 'altered']
+    index = np.random.choice(indices, 1).item()
+    rank = indices.index(index) + 1
+
+    target = Image.open(os.path.join(directory, "altered_{}.png".format(index)))
+
+    # open the wcams for the cases passed as input
+
+    destination = os.path.join(directory, case)
+    target_wcam = Image.open(os.path.join(destination, "wcam_target_{}.png".format(rank))).convert('L')
+
+
+    # get the stable predictions
+    images, pred = find_stable_predictions(image_name, model, directory, corruption)
+
+    # compute the wcam 
+    # normalisation for inference
+    normalize = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+    ])
+
+
+    x = torch.stack([normalize(im) for im in images])
+
+    wavelet = WaveletSobol(model, grid_size = 28, nb_design = 8, batch_size = batch_size, opt = {'approximation' : False})
+    explanations = wavelet(x, np.array([pred, pred]).astype(np.uint8))
+
+    # complete list of images
+    images.append(target)
+    explanations.append(np.array(target_wcam))
+
+    # plot everything
+
+    plot_wcams_horizontal(images, explanations, labels, case, save = save)
+
+
+def plot_wcams(directory, cases, opt = None, save = None):
+    """
+    plots the wcam of the image image_name for the cases 
+    passed as input in the cases inputed in the list
+
+    opt is a set of optional parameters if one wants to specify 
+    precise indices 
+    """
+
+    # open the source and target images
+    source = Image.open(os.path.join(directory, "source.png")).convert('RGB')
+
+    if opt is not None and "index" in opt.keys():
+        index = opt['index']
+
+    else: # TODO. Consider a random index in the set (altered_1, ... altered_n)
+        indices = [int(t.split('_')[1][:-4]) for t in os.listdir(directory) if t[:7] == 'altered']
+        index = np.random.choice(indices, 1).item()
+        rank = indices.index(index) + 1
+
+    target = Image.open(os.path.join(directory, "altered_{}.png".format(index)))
+
+    # open the wcams for the cases passed as input
+
+    if len(cases) == 1: # only one case to consider, so 2x2 plot
+
+        destination = os.path.join(directory, cases[0])
+
+        # open the source and target
+        # 
+
+        source_wcam = Image.open(os.path.join(destination, "wcam_source.png")).convert('L')
+        target_wcam = Image.open(os.path.join(destination, "wcam_target_{}.png".format(rank))).convert('L')
+
+        generate_plot([source, target], [source_wcam], [target_wcam], cases, save = save)
+    
+    else:
+        
+        source_wcams = []
+        target_wcams = []
+
+        for case in cases:
+
+            destination = os.path.join(directory, case)
+
+            source_wcam = Image.open(os.path.join(destination, "wcam_source.png")).convert('L')
+            target_wcam = Image.open(os.path.join(destination, "wcam_target_{}.png".format(rank))).convert('L')
+
+            source_wcams.append(source_wcam)
+            target_wcams.append(target_wcam)
+
+        generate_plot([source, target], source_wcams, target_wcams, cases, save = save)
+
+    return None
+
+
+def generate_plot(images, source_wcams, target_wcams, cases, save = None):
+    """
+    generates a plot with the images and the wcams
+    """
+
+    levels = 3
+    size = 224
+
+    n_cols = 1 + len(source_wcams)
+
+    fig, ax = plt.subplots(2, n_cols, figsize = (4 * n_cols, 8))
+    # add options here
+    plt.rcParams.update({'font.size': 15})
+
+    # first column : images
+    source, target = images
+    ax[0,0].imshow(source)
+    ax[0,0].axis('off')
+    ax[0,0].set_title("Source image")
+
+    ax[1,0].imshow(target)
+    ax[1,0].axis('off')
+    ax[1,0].set_title("Altered image")
+
+    # subsequent columns: wcams
+    for i, (source_wcam, target_wcam) in enumerate(zip(source_wcams, target_wcams)):
+
+        title = '{} case \n WCAM on the source image'.format(cases[i])
+
+        ax[0, i + 1].imshow(source_wcam, cmap = 'jet')
+        ax[0, i + 1].axis('off')
+        ax[0, i + 1].set_title(title)
+        add_lines(size, levels, ax[0, i+1])
+
+
+        ax[1, i + 1].imshow(target_wcam, cmap = 'jet')
+        ax[1, i + 1].axis('off')
+        ax[1, i + 1].set_title('WCAM on the altered image')
+        add_lines(size, levels, ax[1, i+1])
+
+    fig.tight_layout()
+    
+    if save is not None:
+
+        plt.savefig(save)
+        plt.show()
+        plt.close()
+    
+    else:
+        plt.show()
+    
+    return None
 
 
 def return_intersection(preds):
     """
-    returns the intersection between the sets that compose the preds list
-    returns as a list
+    returns a loose intersection between the indices
+    especially if there are more than three sets, we return 
+    the intersection of the non empty sets only
     """
 
     if len(preds) == 1:
@@ -27,10 +314,21 @@ def return_intersection(preds):
     else:
         inter_preds = preds[0].intersection(preds[1])
 
+        additional_components = []
         for i in range(2, len(preds)):
-            inter_preds = inter_preds.intersection(preds[i])
-            
-    return list(inter_preds)
+
+            additional_components.append(list(preds[i]))
+
+        # get the unique components only and flatten the list
+        additional_components = list(set(list(sum(additional_components, []))))
+
+        # append the additional components
+        inter_preds = list(inter_preds)
+        inter_preds.append(additional_components)
+
+        inter_preds = list(set(list(sum(inter_preds, []))))
+
+    return inter_preds
 
 def initialize_samples(source_img_names, imagenet_dir, imagenet_e_directory, target_dir, perturbation = None):
     """

@@ -13,21 +13,24 @@ import argparse
 import numpy as np
 import torchvision
 import torch
-from torchvision.models import resnet50
+from torchvision.models import resnet50, vgg16, vit_b_16
 from PIL import Image
 import os
 from utils import helpers
 from spectral_sobol.torch_explainer import WaveletSobol
 import pandas as pd
 
+# seed
+np.random.seed(1)
+
 # arguments
 parser = argparse.ArgumentParser(description = 'Computation of the spectral signatures')
 
-parser.add_argument('--perturbation', default = 'corruptions', help = "corruption considered", type=str)
-parser.add_argument('--sample_size', default = 5, help = "number of images to consider", type=int)
+parser.add_argument('--perturbation', default = 'editing', help = "corruption considered", type=str)
+parser.add_argument('--sample_size', default = 17, help = "number of images to consider", type=int)
 parser.add_argument('--grid_size' , default = 28, type = int)
 parser.add_argument('--nb_design', default = 4, type = int)
-parser.add_argument('--batch_size', default = 128, type = int)
+parser.add_argument('--batch_size', default = 64, type = int)
 
 
 args = parser.parse_args()
@@ -79,14 +82,23 @@ device = 'cuda:2'
 #               - ST : standard training ('baseline')
 
 models_dir = '../../models/spectral-attribution-baselines'
-cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
-# cases = ['baseline', 'sin', 'adv']
+# cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
+# cases = ['baseline', 'sin', 'pixmix', 'adv', 'fast_adv']
+#cases = ['baseline', 'pixmix', "adv", 'sin', "adv_free", "fast_adv", "auxmix"]
+
+cases = ['vit']
+
+#cases = ['augmix']
 
 # load the models
 models = []
 for case in cases:
-    
-    if case == 'baseline':
+
+    if case == "vit":
+        model = vit_b_16(pretrained = True).to(device).eval()
+    elif case == "vgg": 
+        model = vgg16(pretrained = True).to(device).eval()   
+    elif case == 'baseline':
         model = resnet50(pretrained = True).to(device).eval()
     elif case in ['augmix', 'pixmix', 'sin']:
         model = resnet50(pretrained = False) # model backbone #torch.load(os.path.join(models_dir, '{}.pth'.format(case))).eval()
@@ -154,6 +166,8 @@ def main():
     # generate the transformed images only if we still miss some
     # images
 
+    print(len(img_names), sample_size)
+
     if len(img_names) < sample_size:
 
         # transforms
@@ -179,7 +193,6 @@ def main():
             remaining_items = [i for i in images_list if not i in completed_images]
 
             # initialize the target names
-            np.random.seed(42)
             target_names = np.random.choice(remaining_items, 50)
 
             # source images
@@ -246,6 +259,7 @@ def main():
 
                     # save the changed indices for the current image
                     changed_predictions[img_name] = changed_indices
+                    # print(changed_indices)
 
                 # add the changed predictions to the dictionnary of results
                 results[case] = changed_predictions
@@ -265,8 +279,10 @@ def main():
                     temp_preds = results[case][image_name]
                     preds.append(set(temp_preds))
 
-                # take the intersection 
+                # take the "pseudo intersection" 
                 intersection = helpers.return_intersection(preds)
+
+                # print('intersection for these images', intersection)
 
                 if len(intersection) == 0: # no intersection between the index, continue
                     continue
@@ -281,7 +297,7 @@ def main():
 
             # save the images to keep
             if len(images_to_keep.keys()) > 0:
-                for image_name in images_to_keep.keys():
+                for i, image_name in enumerate(images_to_keep.keys()):
 
                     # create the directory
                     dest = os.path.join(target_folder, image_name)
@@ -295,19 +311,25 @@ def main():
 
                     if len(images) > 5: # save at most 5 images to limit the computational cost 
 
-                        for i, image in enumerate(images[1:5]):
+                        indices = np.random.uniform(1, len(images), 5).astype(np.uint8)
+
+                        for i in indices:
+                            image = images[i]
                             image.save(os.path.join(dest, 'altered_{}.png'.format(i)))
                     else:
                         for i, image in enumerate(images[1:]):
                             image.save(os.path.join(dest, 'altered_{}.png'.format(i)))
 
+                    if i == sample_size:
+                        break
 
                 # update the list of images that have been proceeded
             for t in target_names:
                 completed_images.append(t)
 
             # update the number of images created
-            count += len(images_to_keep.keys())
+            
+            count += i # len(images_to_keep.keys())
             print('{} perturbed samples created. {} remain.'.format(count, sample_size - count))
 
     print('Database instantiation complete. Now computing the WCAMs.')

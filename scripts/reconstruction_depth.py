@@ -14,7 +14,7 @@ import argparse
 import numpy as np
 import torchvision
 import torch
-from torchvision.models import resnet50
+from torchvision.models import resnet50, vgg16, vit_b_16
 from PIL import Image
 import os
 from utils import helpers
@@ -65,13 +65,20 @@ device = 'cuda:1'
 
 models_dir = '../../models/spectral-attribution-baselines'
 # cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
-cases = ['baseline', 'sin', 'adv']
+# cases = ['baseline', 'sin', 'adv']
+# ['vit'] # set up more devices
+cases = ['augmix', 'pixmix', 'fast_adv', 'adv_free']
+
 
 # load the models
 models = []
 for case in cases:
-    
-    if case == 'baseline':
+
+    if case == "vit":
+        model = vit_b_16(pretrained = True).to(device).eval()
+    elif case == "vgg": 
+        model = vgg16(pretrained = True).to(device).eval()    
+    elif case == 'baseline':
         model = resnet50(pretrained = True).to(device).eval()
     elif case in ['augmix', 'pixmix', 'sin']:
         model = resnet50(pretrained = False) # model backbone #torch.load(os.path.join(models_dir, '{}.pth'.format(case))).eval()
