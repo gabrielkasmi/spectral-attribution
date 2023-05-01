@@ -40,8 +40,9 @@ batch_size = args.batch_size
 
 # parameters
 
-cases = ['baseline', 'sin', 'adv']
-device = 'cuda'
+cases = ['vit', 'pixmix', 'adv_free', 'fast_adv', 'adv']
+
+device = 'multi'
 imagenet_directory = '../../data/ImageNet/'
 target_dir = '../../data/spectral-attribution-outputs'
 

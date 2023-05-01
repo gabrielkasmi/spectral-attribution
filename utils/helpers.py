@@ -11,6 +11,7 @@ import torchvision
 from .corruptions import *
 from scipy.stats import wasserstein_distance
 import json
+import torch.nn as nn
 import matplotlib.pyplot as plt
 import torch
 from spectral_sobol.torch_explainer import WaveletSobol
@@ -57,24 +58,30 @@ def load_model(model_name, device, models_dir = '../../models/spectral-attributi
     """
 
     if model_name == "vit":
-        model = vit_b_16(pretrained = True).to(device).eval()
+        model = vit_b_16(pretrained = True).eval()
     elif model_name == "vgg": 
-        model = vgg16(pretrained = True).to(device).eval()   
+        model = vgg16(pretrained = True).eval()   
     elif model_name == 'baseline':
-        model = resnet50(pretrained = True).to(device).eval()
+        model = resnet50(pretrained = True).eval()
     elif model_name in ['augmix', 'pixmix', 'sin']:
         model = resnet50(pretrained = False) # model backbone #torch.load(os.path.join(models_dir, '{}.pth'.format(case))).eval()
         weights = torch.load(os.path.join(models_dir, '{}.pth.tar').format(model_name))
         model.load_state_dict(weights['state_dict'], strict = False)
-        model.to(device)
         model.eval()
     elif model_name in ['adv_free', 'fast_adv', 'adv']:
         model = resnet50(pretrained = False) # model backbone #torch.load(os.path.join(models_dir, '{}.pth'.format(case))).eval()
         weights = torch.load(os.path.join(models_dir, "{}.pth".format(model_name)))
         model.load_state_dict(weights)
-        model.to(device)
         model.eval()
 
+    if not device == 'multi':
+        model = model.to(device)
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        model= nn.DataParallel(model)
+        model.to(device)
+    
     return model
 
 
