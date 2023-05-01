@@ -37,7 +37,7 @@ The source code of the spectral attribution method is located in the folder `spe
 
 ### Replication of our results
 
-The folders `scripts` and `notebooks` contain the scripts and notebook used to generate the results presented in the paper. In addition to these scripts and notebooks, you will need to download the ImageNet validation set (accessible [here](https://www.image-net.org/download.php)) and the supplementary material provided in our [Zenodo repository](). 
+The folders `scripts` and `notebooks` contain the scripts and notebook used to generate the results presented in the paper. In addition to these scripts and notebooks, you will need to download the ImageNet validation set (accessible [here](https://www.image-net.org/download.php)).
 
 ## License and citation 
 
