@@ -16,11 +16,11 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 
 ### Models rely on a limited set of wavelet coefficients to make predictions
 
-WCAM addresses two questions: <i> how perturbations affect a model </i> and <i> how robustness mitigation strategies improve the robustness to distribution shifts </i>. Through experiments on ImageNet-C and ImageNet-E we show that models rely on a limited set of coefficients to make their prediction. This behavior is consistant across model backbones (convolutional, transformers and self-supervised) and training approaches (standard, robust and adversarial). 
 
-### The reconstruction depth is predictive of the robustness of a prediction
+### WCAMs highlight the sufficient information for image classification 
 
-It is of great interest for practitioners to target predictions that are likely to be erroneous. To this end and based on our findings, we introduce the <i> reconstruction depth </i> a measure based on the number of wavelet coefficients necessary to reconstruct the sufficient image (i.e., an image that is correctly classified by the model). Experiments show a correlation between the robustness of a prediction and the reconstruction depth. This pattern is consistent across backbones and training strategies. Besides, it also holds if the reference image is a perturbed image. This paves the way for leveraging the reconstruction depth as a predictive measure of the robustness of a prediction, which can be very useful in practical settings for flagging unreliable model predictions. Moreover, this shows that WCAMs provide a way of asserting instance-based robustness whereas existing studies are limited to model-based assessments. 
+### WCAMs show that zoom improves performance mainly because it discards background information, not because it brings new information
+
 
 ## Usage
 
