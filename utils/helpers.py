@@ -16,6 +16,40 @@ import torch
 from spectral_sobol.torch_explainer import WaveletSobol
 from torchvision.models import resnet50, vgg16, vit_b_16
 
+def compute_level_contribution(wcam, levels):
+    """
+    computes the contribution of each level to the overall prediction
+    """
+
+    shape = wcam.shape[0]
+
+    contributions = []
+
+    for level in range(levels + 1):
+
+        # start, end indices
+        start, end = shape // 2 ** (level + 1), shape // 2 ** level
+        
+
+        # level_wise coefficients = 
+        h = wcam[:start, start:end].flatten()
+        v = wcam[start:end, :start].flatten()
+        d = wcam[start:end, start:end].flatten()
+
+        level_contribution = sum(h) / len(h) + sum(v) / len(v) + sum(d) / len(d)
+        contributions.append(level_contribution)
+
+    return contributions[::-1] / sum(contributions)
+
+def level_contributions(wcams, levels):
+
+    results = np.zeros((levels + 1, len(wcams)))
+
+    for i, wcam in enumerate(wcams):
+
+        results[:,i] = compute_level_contribution(wcam, levels)
+
+    return results
 
 def load_model(model_name, device, models_dir = '../../models/spectral-attribution-baselines'):
     """
@@ -148,8 +182,6 @@ def plot_stable_and_unstable_prediction(image_name, model, directory, corruption
     'label' (list) labels to be displayed on the plot
     """
 
-    batch_size = 128 if not 'case' == 'vit' else 64
-
     # get the wcam altered
     indices = [int(t.split('_')[1][:-4]) for t in os.listdir(directory) if t[:7] == 'altered']
     index = np.random.choice(indices, 1).item()
@@ -177,7 +209,7 @@ def plot_stable_and_unstable_prediction(image_name, model, directory, corruption
 
     x = torch.stack([normalize(im) for im in images])
 
-    wavelet = WaveletSobol(model, grid_size = 28, nb_design = 8, batch_size = batch_size, opt = {'approximation' : False})
+    wavelet = WaveletSobol(model, grid_size = 28, nb_design = 8, batch_size = 128, opt = {'approximation' : False})
     explanations = wavelet(x, np.array([pred, pred]).astype(np.uint8))
 
     # complete list of images

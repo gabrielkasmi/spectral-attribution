@@ -29,8 +29,8 @@ parser = argparse.ArgumentParser(description = 'Computation of the robustness de
 parser.add_argument('--perturbation', default = 'corruptions', help = "corruption considered", type=str)
 parser.add_argument('--sample_size', default = 100, help = "number of images to consider", type=int)
 parser.add_argument('--grid_size' , default = 28, type = int)
-parser.add_argument('--nb_design', default = 4, type = int)
-parser.add_argument('--batch_size', default = 128, type = int)
+parser.add_argument('--nb_design', default = 8, type = int)
+parser.add_argument('--batch_size', default = 64, type = int)
 
 args = parser.parse_args()
 
@@ -67,7 +67,8 @@ models_dir = '../../models/spectral-attribution-baselines'
 # cases = ['pixmix', 'baseline', 'augmix', 'sin', 'adv_free', 'fast_adv', 'adv']
 # cases = ['baseline', 'sin', 'adv']
 # ['vit'] # set up more devices
-cases = ['augmix', 'pixmix', 'fast_adv', 'adv_free']
+# cases = ['augmix', 'pixmix', 'fast_adv', 'adv_free']
+cases = ['vit']
 
 
 # load the models
