@@ -16,10 +16,22 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 
 ### Models rely on a limited set of wavelet coefficients to make predictions
 
+<p align="center">
+<img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/corruptions_baseline_2-1.png" width=500px>
+</p>
+
 
 ### WCAMs highlight the sufficient information for image classification 
 
+<p align="center">
+<img src="https://github.com/spectral-attribution/blob/main/assets/reconstruction-sufficient-2-1.png" width=500px>
+</p>
+
 ### WCAMs show that zoom improves performance mainly because it discards background information, not because it brings new information
+
+<p align="center">
+<img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/table.png" width=500px>
+</p>
 
 
 ## Usage
