@@ -17,7 +17,7 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 ### Models rely on a limited set of wavelet coefficients to make predictions
 
 <p align="center">
-<img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/corruptions_baseline_2-1.png" width=500px>
+<img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/reconstruction-sufficient-2-1.png" width=500px>
 </p>
 
 
