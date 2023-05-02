@@ -24,7 +24,7 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 ### WCAMs highlight the sufficient information for image classification 
 
 <p align="center">
-<img src="https://github.com/gabriekasmi/spectral-attribution/blob/main/assets/reconstruction-sufficient-2-1.png" width=500px>
+<img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/reconstruction-sufficient-2-1.png" width=500px>
 </p>
 
 ### WCAMs show that zoom improves performance mainly because it discards background information, not because it brings new information
