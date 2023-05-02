@@ -12,6 +12,20 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 <img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/flowchart-wcam.png" width=500px>
 </p>
 
+## Usage
+
+If you want to use the source code of the Spectral attribution methods or replicate our results, we recommend you create a virtual environment. This can be done as follows:
+
+```python
+conda env create -file spectral_attribution.yml
+conda activate spectral_attribution
+```
+
+### Using the spectral attribution methods (WCAM and Fourier-CAM)
+
+The source code of the spectral attribution method is located in the folder `spectral_sobol`. This source code is based on Fel et. al.'s [Sobol attribution method](https://proceedings.neurips.cc/paper/2021/hash/da94cbeff56cfda50785df477941308b-Abstract.html) (NeurIPS 2021). You can access a demo of this attribution method in the notebook `example.ipynb`.
+
+
 ## Main results
 
 ### Models rely on a limited set of wavelet coefficients to make predictions
@@ -38,19 +52,6 @@ As seen from the table below, the importance of the level introduced by the zoom
 <p align="center">
 <img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/table.png" width=800px>
 </p>
-
-## Usage
-
-If you want to use the source code of the Spectral attribution methods or replicate our results, we recommend you create a virtual environment. This can be done as follows:
-
-```python
-conda env create -file spectral_attribution.yml
-conda activate spectral_attribution
-```
-
-### Using the spectral attribution methods (WCAM and Fourier-CAM)
-
-The source code of the spectral attribution method is located in the folder `spectral_sobol`. This source code is based on Fel et. al.'s [Sobol attribution method](https://proceedings.neurips.cc/paper/2021/hash/da94cbeff56cfda50785df477941308b-Abstract.html) (NeurIPS 2021). You can access a demo of this attribution method in the notebook `example.ipynb`.
 
 ### Replication of our results
 
