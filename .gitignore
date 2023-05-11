@@ -16,3 +16,4 @@ notebooks/old
 scripts/old
 scripts/__pycache__/
 scripts/waveletsobol_tf/
+scripts/xplique.py
