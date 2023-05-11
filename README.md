@@ -59,7 +59,8 @@ As seen from the table below, the importance of the level introduced by the zoom
 The folders `scripts` and `notebooks` contain the scripts and notebook used to generate the results presented in the paper. In addition to these scripts and notebooks, you will need to download:
 * The ImageNet validation set (accessible [here](https://www.image-net.org/download.php))
 * ImageNet-A (accessible [here](https://github.com/hendrycks/natural-adv-examples)) and ImageNet-R (accessible [here](https://github.com/hendrycks/imagenet-r))
-* The supplementary data accessible on our [Zenodo repository](10.5281/zenodo.7924905). 
+* The supplementary data accessible on our [Zenodo repository]([10.5281/zenodo.7924905](https://doi.org/10.5281/zenodo.7924905
+)). 
 
 ## License and citation 
 
