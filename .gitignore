@@ -14,3 +14,5 @@ figs.ipynb
 notebooks/.ipynb_checkpoints/
 notebooks/old
 scripts/old
+scripts/__pycache__/
+scripts/waveletsobol_tf/

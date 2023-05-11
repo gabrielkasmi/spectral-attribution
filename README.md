@@ -1,6 +1,6 @@
-# Scale matters: attribution meets the spectral domain to explain model brittleness to image corruptions
+# Scale Matters: Attribution Meets the Wavelet Domain to Explain Model Sensitivity to Image Corruptions
 
-Gabriel Kasmi, Philippe Blanc, Yves-Marie Saint-Drenan, Laurent Dubus
+Gabriel Kasmi, Yves-Marie Saint-Drenan, Laurent Dubus, Philippe Blanc
 
 ## Overview 
 
@@ -17,8 +17,9 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 If you want to use the source code of the Spectral attribution methods or replicate our results, we recommend you create a virtual environment. This can be done as follows:
 
 ```python
-conda env create -file spectral_attribution.yml
+conda create --name spectral_attribution
 conda activate spectral_attribution
+pip install -r requirements.txt
 ```
 
 ### Using the spectral attribution methods (WCAM and Fourier-CAM)
