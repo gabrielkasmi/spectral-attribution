@@ -52,7 +52,7 @@ def level_contributions(wcams, levels):
 
     return results
 
-def load_model(model_name, device, models_dir = '../../models/spectral-attribution-baselines'):
+def load_model(model_name, device, models_dir = '../../models/'):
     """
     loads a model
     """

@@ -1,12 +1,12 @@
-# Scale matters: attribution meets the spectral domain to explain model brittleness to image corruptions
+# Scale Matters: Attribution Meets the Wavelet Domain to Explain Model Sensitivity to Image Corruptions
 
-Gabriel Kasmi, Philippe Blanc, Yves-Marie Saint-Drenan, Laurent Dubus
+Anonymous submission 
 
 ## Overview 
 
 Spectral attribution methods consist in perturbing images in the space-scale domain or frequency domain to recover the regions in these domains that contribute to a model's prediction. It thus brigde the gap between existing attribution methods that only identify the important features in the spatial domain and robustness studies that have quantitatively asserted that robust models tend to rely more on low frequency components than standard models. 
 
-Our first main contribution is the <b> wavelet class activation map </b> (WCAM), which highlights the important regions for the prediction of a label in the space-scale domain. WCAMs are obtained by computing the Sobol indices coming from a Sobol sequence. These sequence is converted as a mask, which is applied to the wavelet transform of the input image. Perturbed images are obtained by inverting the perturbed wavelet transform of the image. As an output, WCAM highlight the important regions (according to their Sobol indices) of regions in the space-scale domain. Besides, WCAMs can be wrapped to obtain the importance of the various image regions. WCAMs are based on the Sobol attribution method introcued by [Fel et al. (2021)](https://openreview.net/forum?id=hA-PHQGOjqQ).
+Our main contribution is the <b> wavelet scale attribution method </b> (WCAM), which highlights the important regions for the prediction of a label in the space-scale domain. WCAMs are obtained by computing the Sobol indices coming from a Sobol sequence. These sequence is converted as a mask, which is applied to the wavelet transform of the input image. Perturbed images are obtained by inverting the perturbed wavelet transform of the image. As an output, WCAM highlight the important regions (according to their Sobol indices) of regions in the space-scale domain. Besides, WCAMs can be wrapped to obtain the importance of the various image regions. WCAMs are based on the Sobol attribution method introcued by [Fel et al. (2021)](https://openreview.net/forum?id=hA-PHQGOjqQ).
 
 <p align="center">
 <img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/flowchart-wcam.png" width=500px>
@@ -17,8 +17,9 @@ Our first main contribution is the <b> wavelet class activation map </b> (WCAM),
 If you want to use the source code of the Spectral attribution methods or replicate our results, we recommend you create a virtual environment. This can be done as follows:
 
 ```python
-conda env create -file spectral_attribution.yml
+conda create --name spectral_attribution
 conda activate spectral_attribution
+pip install -r requirements.txt
 ```
 
 ### Using the spectral attribution methods (WCAM and Fourier-CAM)
@@ -55,7 +56,10 @@ As seen from the table below, the importance of the level introduced by the zoom
 
 ### Replication of our results
 
-The folders `scripts` and `notebooks` contain the scripts and notebook used to generate the results presented in the paper. In addition to these scripts and notebooks, you will need to download the ImageNet validation set (accessible [here](https://www.image-net.org/download.php)).
+The folders `scripts` and `notebooks` contain the scripts and notebook used to generate the results presented in the paper. In addition to these scripts and notebooks, you will need to download:
+* The ImageNet validation set (accessible [here](https://www.image-net.org/download.php))
+* ImageNet-A (accessible [here](https://github.com/hendrycks/natural-adv-examples)) and ImageNet-R (accessible [here](https://github.com/hendrycks/imagenet-r))
+* The supplementary data accessible on our [Zenodo repository]() 
 
 ## License and citation 
 
