@@ -70,7 +70,10 @@ This work is provided under GNU License.
 ### Citation
 
 ```
-@article{
-
+@article{kasmi2023scale,
+  title={Scale Matters: Attribution Meets the Wavelet Domain to Explain Model Sensitivity to Image Corruptions},
+  author={Kasmi, Gabriel and Dubus, Laurent and Drenan, Yves-Marie Saint and Blanc, Philippe},
+  journal={arXiv preprint arXiv:2305.14979},
+  year={2023}
 }
 ```
