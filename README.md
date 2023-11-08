@@ -72,7 +72,7 @@ This work is provided under GNU License.
 
 Like this work ? Do not hesitate to star us !
 
-### References
+## References
 
 [1] Fel, T., Cadène, R., Chalvidal, M., Cord, M., Vigouroux, D., & Serre, T. (2021). Look at the variance! efficient black-box explanations with sobol-based sensitivity analysis. *Advances in Neural Information Processing Systems*, 34, 26005-26014.
 
