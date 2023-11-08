@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 ### An illustrative example
 
-If you want to see an example of how the WCAM works, you can go run the notebook `example.ipynb`. This notebooks guides you through the main steps to load an image, compte its WCAM and visualize the results. 
+If you want to see an example of how the WCAM works, you can run the notebook `example.ipynb`. This notebooks guides you through the main steps to load an image, compte its WCAM and visualize the results. 
 
 ### Source code
 
