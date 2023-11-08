@@ -1242,6 +1242,39 @@ def compute_wavelet_transform(image, level = 3, wavelet = 'haar'):
         
     return transform, slices
 
+
+def compute_explanation_masks(cam, metric):
+    """
+    computes masks for insertion and deletion
+
+    masks is a grid_size, grd_size, n_features mask
+    """
+    # small routine to convert the mask as a uint8 image
+    if cam.dtype == 'float32':
+        normalized_map = NormalizeData(cam)
+        cam = (normalized_map * 255).astype(np.uint8)
+
+    # Get the flattened indices of the elements in descending order
+    flat_indices = np.argsort(cam.ravel())[::-1]
+
+    # Convert the flattened indices to 2D coordinates
+    x, y = np.unravel_index(flat_indices, cam.shape)
+
+    # set the sequence of masks
+    n_masks = len(flat_indices) # total number of features
+
+    if metric == "insertion":
+        masks = np.zeros((cam.shape[0], cam.shape[1], n_masks)).astype(np.uint8)
+        for i in range(n_masks): # add features by ascending order
+            masks[x[:i+1], y[:i+1], i] = 255
+
+    elif metric == "deletion":
+        masks = 255 * np.ones((cam.shape[0], cam.shape[1], n_masks)).astype(np.uint8)
+        for i in range(n_masks): # remove featuers by descending order
+            masks[x[:i+1], y[:i+1], i] = 0
+
+    return masks
+
 def compute_sparse_masks(arr):
     """
     returns a sequence of binary masks with increasing coefficients
@@ -1275,6 +1308,8 @@ def compute_sparse_masks(arr):
             masks[:,:,i] = 255
 
     return masks
+
+
 
 def reconstruct_images(image, cam, levels = 3):
     """
@@ -1398,6 +1433,50 @@ def add_lines(size, levels, ax):
 
     return None
 
+def evaluate_on_samples(images, label, model, batch_size = 128, transform = None):
+    """
+    inference loop with a specified label index
+    """
+
+    # set up the normalization
+    if transform is None:
+        transform = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+    ])
+    
+
+    # retrieve the device
+    device = next(model.parameters()).device
+    model.eval()
+
+    x = torch.stack([
+        transform(im) for im in images
+    ])
+
+    y = np.empty(len(x))
+    np_batch = int(np.ceil(len(x) / batch_size))
+
+
+    with torch.no_grad():
+
+        for batch_index in range(np_batch):
+            # retrieve the images
+            start_index = batch_index * batch_size
+            end_index = min(len(x), (batch_index+1)*batch_size)
+
+            # batch samples
+            batch_x = x[start_index : end_index, :,:,:].to(device)
+            
+            # batch preds
+            batch_y = model(batch_x)
+
+    
+            batch_y = batch_y[:, label].cpu().detach().numpy()
+            y[start_index:end_index] = batch_y
+
+    return y
 
 def evaluate_model_on_samples(x, model, batch_size):
     """

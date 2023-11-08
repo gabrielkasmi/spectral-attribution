@@ -284,7 +284,7 @@ class WaveletSobol:
         model,
         grid_size=8,
         nb_design=64,
-        sampler=ScipySobolSequence(scramble=True),
+        sampler=ScipySobolSequence(scramble=True, seed = 42),
         estimator=JansenEstimator(),
         perturbation_function=wavelet,
         batch_size=256,

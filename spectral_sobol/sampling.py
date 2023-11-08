@@ -94,11 +94,12 @@ class ScipySobolSequence(Sampler):
     https://www.sciencedirect.com/science/article/abs/pii/0041555367901449
     """
 
-    def __init__(self, scramble=False):
-        self.scramble = scramble
+    def __init__(self, scramble=False, seed = 42):
+        self.scramble = scramble,
+        self.seed = seed
 
     def __call__(self, dimension, nb_design):
-        sampler = qmc.Sobol(dimension*2, scramble=self.scramble, seed = 42)
+        sampler = qmc.Sobol(dimension*2, scramble=self.scramble, seed = self.seed)
         ab = sampler.random(nb_design)
         a, b = ab[:, :dimension], ab[:, dimension:]
         c = self._build_replicated_design(a, b)

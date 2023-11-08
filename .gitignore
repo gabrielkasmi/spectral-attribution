@@ -18,3 +18,8 @@ scripts/old
 scripts/__pycache__/
 scripts/waveletsobol_tf/
 scripts/xplique.py
+notebooks/
+data/
+res/
+.ipynb_checkpoints
+scrips/
