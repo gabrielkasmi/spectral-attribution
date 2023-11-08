@@ -1,12 +1,15 @@
 # Scale Matters: Attribution Meets the Wavelet Domain to Explain Model Sensitivity to Image Corruptions
 
-Anonymous submission 
+Gabriel Kasmi, Laurent Dubus, Yves-Marie Saint-Drenan, Philippe Blanc
+
+Accepted for the [XAI in action at NeurIPS 2023](https://xai-in-action.github.io/), Dec 16th 2023.
 
 ## Overview 
 
-Spectral attribution methods consist in perturbing images in the space-scale domain or frequency domain to recover the regions in these domains that contribute to a model's prediction. It thus brigde the gap between existing attribution methods that only identify the important features in the spatial domain and robustness studies that have quantitatively asserted that robust models tend to rely more on low frequency components than standard models. 
+Deep neural networks are widely used in computer vision, but there is a growing consensus that their deployment in real-world applications can be problematic due to reliability issues. This is primarily attributed to their black-box nature, leading to the need for explainable AI (XAI) techniques for better understanding model decisions, and distribution shifts that can cause unpredictable failures. To safely deploy deep learning models, there is a requirement for tools that can audit both the relevance and robustness of a model's decisions in the face of distribution shifts. While attribution methods have helped understand the decision process, and Fourier analysis has been used to assess robustness, there is currently a research gap in combining these approaches to audit decisions in both the pixel (space) and frequency (scale) domains, which would provide a more comprehensive assessment
 
-Our main contribution is the <b> wavelet scale attribution method </b> (WCAM), which highlights the important regions for the prediction of a label in the space-scale domain. WCAMs are obtained by computing the Sobol indices coming from a Sobol sequence. These sequence is converted as a mask, which is applied to the wavelet transform of the input image. Perturbed images are obtained by inverting the perturbed wavelet transform of the image. As an output, WCAM highlight the important regions (according to their Sobol indices) of regions in the space-scale domain. Besides, WCAMs can be wrapped to obtain the importance of the various image regions. WCAMs are based on the Sobol attribution method introcued by [Fel et al. (2021)](https://openreview.net/forum?id=hA-PHQGOjqQ).
+We introduce **Wavelet Scale Attribution Method (WCAM)**, a novel attribution method that represents a model decision in the space-scale (or wavelet) domain. The decomposition in the space-scale domain highlights which structural components (textures, edges, shapes) are important for the prediction, allowing us to assess the *relevance* of a decision process. Moreover, as scales correspond to frequencies, we simultaneously evaluate whether this decision process is robust. We discuss the potential of WCAM for application in expert settings (e.g., medical imaging or remote sensing), show that we can quantify the robustness of a prediction with WCAM, and highlight concerning phenomena regarding the consistency of the decision process of deep learning models.
+
 
 <p align="center">
 <img src="https://github.com/gabrielkasmi/spectral-attribution/blob/main/assets/flowchart-wcam.png" width=500px>
@@ -14,7 +17,7 @@ Our main contribution is the <b> wavelet scale attribution method </b> (WCAM), w
 
 ## Usage
 
-If you want to use the source code of the Spectral attribution methods or replicate our results, we recommend you create a virtual environment. This can be done as follows:
+If you want to use the source code of the WCAM, we recommend you create a virtual environment. This can be done as follows:
 
 ```python
 conda create --name spectral_attribution
@@ -22,7 +25,7 @@ conda activate spectral_attribution
 pip install -r requirements.txt
 ```
 
-### Using the spectral attribution methods (WCAM and Fourier-CAM)
+### Using WCAM in your projects
 
 The source code of the spectral attribution method is located in the folder `spectral_sobol`. This source code is based on Fel et. al.'s [Sobol attribution method](https://proceedings.neurips.cc/paper/2021/hash/da94cbeff56cfda50785df477941308b-Abstract.html) (NeurIPS 2021). You can access a demo of this attribution method in the notebook `example.ipynb`.
 
