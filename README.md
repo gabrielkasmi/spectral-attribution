@@ -2,7 +2,7 @@
 
 Gabriel Kasmi, Laurent Dubus, Yves-Marie Saint-Drenan, Philippe Blanc
 
-Accepted for the [XAI in action at NeurIPS 2023](https://xai-in-action.github.io/), Dec 16th 2023. Access the paper [here](https://arxiv.org/abs/2305.14979).
+Accepted for the [XAI in action workshop at NeurIPS 2023](https://xai-in-action.github.io/), Dec 16th 2023 in New-Orleans. Access the paper [here](https://arxiv.org/abs/2305.14979).
 
 ## Overview 
 
